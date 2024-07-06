@@ -7,7 +7,7 @@ format:
     grid:
       sidebar-width: 200px
       body-width: 900px
-      margin-width: 510px
+      margin-width: 400px
       gutter-width: 1.0rem
 toc: true
 page-layout: full
@@ -82,7 +82,7 @@ nrow(st_avg)
 ```{r}
 #| fig-cap: Human Ratings
 #| fig-width: 12
-#| fig-height: 11
+#| fig-height: 9
 
 
 # bar plots with error bars for sim_trial_type
@@ -240,7 +240,7 @@ cor(st_avg_type2 %>%
 ```{r}
 #| fig-cap: Rating distributions
 #| fig-width: 12
-#| fig-height: 14
+#| fig-height: 11
 
 st_avg_type2 %>%
   mutate(mean_resp_bin = cut(mean_response, breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), include.lowest = TRUE)) %>%
@@ -275,10 +275,9 @@ st_avg_type2 |> ggplot(aes(x=mean_response, y=gpt4o_rating, col=sim_trial_type))
 
 
 
-## Effect of Rotation
+### Effect of Rotation
 
 ```{r}
-
 
 st_avg_type2 |> 
   filter(sim_trial_type %in% c("same","repeat")) |>

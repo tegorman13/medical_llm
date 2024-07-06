@@ -1,1 +1,1 @@
-Sitemap: https://tegorman13.github.io/dot_variability/sitemap.xml
+Sitemap: https://tegorman13.github.io/medical_llm/sitemap.xml

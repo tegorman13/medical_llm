@@ -13,8 +13,8 @@ project:
 
 website:
   title: "Medical Image Similarity"
-  repo-url: https://github.com/tegorman13/dot_variability
-  site-url: "https://tegorman13.github.io/dot_variability"
+  repo-url: https://github.com/tegorman13/medical_llm
+  site-url: "https://tegorman13.github.io/medical_llm"
   repo-actions: [source]
   reader-mode: true
   page-navigation: true
@@ -23,7 +23,7 @@ website:
     background: light
     tools:
     - icon: github
-      href: https://github.com/tegorman13/dot_variability
+      href: https://github.com/tegorman13/medical_llm
     contents:
       - href: index.qmd
         text: Home
@@ -39,7 +39,7 @@ website:
       - text: "{{< fa brands github size=2.0x >}}"
         aria-label: GitHub
         target: _blank
-        href: https://github.com/tegorman13/dot_variability
+        href: https://github.com/tegorman13/medical_llm
 
 
 
