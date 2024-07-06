@@ -202,6 +202,11 @@ combined_df2 <- combined_df_with_ratings %>%
 st_avg_type2 <- st_avg_type |> left_join(combined_df2 |> select(image_pair,gpt4o_rating), by=c("image_pair"))
 #saveRDS(st_avg_type2, here("data","gpt4o_ratings.rds"))
 
+
+# count combined_df2$gpt4o_rating equal to NA (3)
+#sum(is.na(combined_df2$gpt4o_rating)) 
+
+
 ```
 
 
@@ -346,7 +351,6 @@ st_avg_type2 |> ggplot(aes(x=mean_response, y=gpt4o_rating, col=sim_trial_type))
 
 
 ```
-
 
 
 ### Effect of Rotation
