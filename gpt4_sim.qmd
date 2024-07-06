@@ -1,0 +1,312 @@
+---
+title: Comparing Humand and gpt4o Ratings of Image Similarity
+date: last-modified
+lightbox: true
+format:
+  html: 
+    grid:
+      sidebar-width: 200px
+      body-width: 900px
+      margin-width: 510px
+      gutter-width: 1.0rem
+toc: true
+page-layout: full
+toc-depth: 3
+code-fold: show
+code-tools: true
+execute: 
+  warning: false
+---
+
+```{r}
+#| echo: false
+#| output: false 
+library(tidyverse)
+library(here)
+library(readr)
+library(ggh4x)
+library(knitr)
+
+# Load the data - similarity_trials.csv
+
+sim_trials <- read_csv(here("data","similarity_trials.csv"))|> mutate(path=paste0(here("images", image_pair)))
+mean_judgment <- read_csv(here("data","mean_judgment.csv")) 
+
+head(sim_trials$path)
+head(sim_trials)
+# A tibble: 6 × 10
+#    ...1 trial_procedure sim_trial_type                        image_pair                      response z_response rotation     rt total_time subject
+#   <dbl> <chr>           <chr>                                 <chr>                              <dbl>      <dbl>    <dbl>  <dbl>      <dbl>   <dbl>
+# 1    35 similarity_1    disagreement-googlenet_not_supervised BL_21818239.jpg-HC_9673.jpg            3     -0.662        0 413206    1513538       0
+# 2    37 similarity_1    expected-supervised-similar           ER0944_028.jpg-ER0944_004.jpg          7      0.699        0   2687    1513538       0
+# 3    39 similarity_1    repeat                                BL_19867345.jpg-BL_19867345.jpg        8      1.04       180   2527    1513538       0
+
+head(sim_trials$image_pair)
+# [1] "BL_21818239.jpg-HC_9673.jpg"     "ER0944_028.jpg-ER0944_004.jpg"   "BL_19867345.jpg-BL_19867345.jpg" "BL_1121534.jpg-LY_4537514.jpg"   "VLY_24840924.jpg-Auerrods4.jpg" 
+# [6] "BL_12930026.jpg-BL_12930123.jpg"
+
+
+head(list.files("images"))
+# [1] "14228000751A_081.jpg-SNE_10020613.jpg"     "16253007354A_027.jpg-BL_10166384.jpg"      "16253007354A_031.jpg-16253007354A_011.jpg" "16253007354A_107.jpg-EO_10020866.jpg"     
+# [5] "16258001115A_003.jpg-BL_23546139.jpg"      "16258001115A_005.jpg-14228000751A_081.jpg"
+
+
+sim_trials |> group_by(subject, image_pair) |> summarise(n=n())
+sim_trials |> group_by(image_pair) |> summarise(n=n(), mean_response=mean(response), mean_z_response=mean(z_response), rotation=mean(rotation)) |> arrange(desc(mean_response))
+sim_trials |> group_by(image_pair) |> summarise(n=n(), mean_response=mean(response), mean_z_response=mean(z_response), rotation=mean(rotation)) |> arrange((mean_response))
+
+
+st_avg <- sim_trials |> group_by(image_pair,path) |> summarise(n=n(), mean_response=mean(response), mean_z_response=mean(z_response), rotation=mean(rotation)) |> arrange((mean_response))
+
+
+st_avg_type <- sim_trials |> group_by(image_pair,path,sim_trial_type,rotation) |> 
+  summarise(n=n(), mean_response=mean(response), mean_z_response=mean(z_response)) |> 
+  arrange((rotation))
+
+sim_trials |> group_by(sim_trial_type,rotation) |> 
+  summarise(n=n(), mean_response=mean(response), mean_z_response=mean(z_response)) |> 
+  arrange((rotation))
+
+nrow(st_avg)
+#report the similarity between these two images using a a 0-10, with 0 being completely dissimilar, and 10 being extremely similar. 
+
+
+```
+
+
+
+## Inspect Human Ratings
+
+- Wright-Stained white blood cell images from @truebloodImpactSpeedBias2018
+- fine tuned representations from @holmesJointDeepNeural2020
+```{r}
+#| fig-cap: Human Ratings
+#| fig-width: 12
+#| fig-height: 11
+
+
+# bar plots with error bars for sim_trial_type
+st_avg_type |> ggplot(aes(x=sim_trial_type, y=mean_response, fill=sim_trial_type)) + 
+  stat_summary(fun=mean, geom="bar") +
+  stat_summary(fun.data=mean_se, geom="errorbar", width=0.2) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size=9,angle = 70, hjust = 1)) +
+  labs(title="Mean similarity ratings by trial type", x="Trial type", y="Mean similarity rating") 
+
+ggplot(st_avg_type, aes(x = mean_response, y = reorder(image_pair, mean_response), col = sim_trial_type)) + 
+  geom_point(size = 2) +
+  geom_errorbarh(aes(xmin = mean_response - sd(sim_trials$response) / sqrt(n), 
+                     xmax = mean_response + sd(sim_trials$response) / sqrt(n)),
+                 height = 0.2) +
+  facet_wrap(~ sim_trial_type, scales = "free_y", ncol = 2) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 6),
+        strip.text = element_text(size = 10, face = "bold"),
+        legend.position = "none") +
+  labs(title = "Mean similarity ratings by trial type", 
+       x = "Mean similarity rating", 
+       y = "Image Pair") +
+  scale_x_continuous(limits = c(0, 10), breaks = seq(0, 10, 2))
+
+```
+
+
+## Collect GPT-4 Ratings
+
+```{r}
+#| eval: false
+
+api_key <- Sys.getenv("OPENAI_API_KEY")
+
+
+encode_image <- function(image_path) {
+  image_data <- readBin(image_path, what = "raw", n = file.info(image_path)$size)
+  base64_encoded <- base64enc::base64encode(image_data)
+  encoded_image <- glue::glue("data:image/jpeg;base64,{base64_encoded}")
+  return(encoded_image)
+}
+
+
+get_gpt4_rating <- function(image_path) {
+  tryCatch({
+    encoded_image <- encode_image(image_path)
+
+    system_prompt <- "You are acting as a human research participant in a psychology study. You will be presented with an image that contains two cell images (one on the left, and the other on the right). Your task is to rate the similarity of the images, with 0 being not similar at all, and 10 being very similar. Respond only with the integer corresponding to your rating."
+
+    trial_instruction <- "Rate the similarity of these 2 images:"
+
+    response <- openai::create_chat_completion(
+      model = "gpt-4o",
+      temperature = 0.0,
+      top_p = 1,
+      frequency_penalty = 0,
+      messages = list(
+        list(
+          role = "system",
+          content = system_prompt
+        ),
+        list(role = 'user',
+            content = list(
+              list(
+                type = 'text',
+                text = trial_instruction
+              ),
+              list(
+                type = 'image_url',
+                image_url = list(
+                  url = encoded_image #, detail="low"
+                )
+              )
+            )
+      )
+      )
+    )
+    return(response)
+  }, error = function(e) {
+    warning(paste("Error occurred while sending request to OpenAI API for image:", image_path, ":", e$message))
+    return(NULL)
+  })
+}
+
+# collect ratings using openai api - takes ~5 minutes for 240 images. 
+
+# combined_df_with_ratings <- st_avg %>% mutate(gpt_response = map(path, get_gpt4_rating))
+
+combined_df2 <- combined_df_with_ratings %>%
+  mutate(gpt4o_rating = map_dbl(gpt_response, ~ {
+    if (is.null(.x) || identical(.x, "NULL")) {
+      return(NA_real_)
+    } else {
+      # Extract the integer rating
+      rating <- tryCatch(
+        {
+          rating_value <- as.integer(str_extract(.x$choices$message.content, "\\d"))
+          if (is.na(rating_value)) {
+            NA_real_
+          } else {
+            rating_value
+          }
+        },
+        error = function(e) NA_real_
+      )
+      return(rating)
+    }
+  }))
+
+
+#saveRDS(combined_df2, here("first_full_run_script_list.rds"))
+
+st_avg_type2 <- st_avg_type |> left_join(combined_df2 |> select(image_pair,gpt4o_rating), by=c("image_pair"))
+#saveRDS(st_avg_type2, here("data","gpt4o_ratings.rds"))
+
+```
+
+
+## Compare Human and GPT-4o Ratings
+
+
+Overall correlation
+```{r}
+
+st_avg_type2 <- readRDS(here("data","gpt4o_ratings.rds"))
+cor(st_avg_type2$mean_response, st_avg_type2$gpt4o_rating, use="complete.obs")
+```
+
+
+Correlation by sim_trial_type
+```{r}
+# compute cor separately for each level of sim_trial_type
+st_avg_type2 |> 
+  group_by(sim_trial_type) |> 
+  summarise(n=n(),correlation = cor(mean_response, gpt4o_rating, use = "complete.obs")) |> 
+  arrange(desc(correlation)) |> kable()
+```
+
+
+```{r}
+# filter out human ratings greater than 7, and compute the correlation again
+cor(st_avg_type2 %>%
+      filter(mean_response <= 7) %>%
+      pull(mean_response),
+    st_avg_type2 %>%
+      filter(mean_response <= 7) %>%
+      pull(gpt4o_rating),
+    use = "complete.obs")
+```
+
+
+
+
+```{r}
+#| fig-cap: Rating distributions
+#| fig-width: 12
+#| fig-height: 14
+
+st_avg_type2 %>%
+  mutate(mean_resp_bin = cut(mean_response, breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), include.lowest = TRUE)) %>%
+  ggplot(aes(mean_resp_bin, gpt4o_rating)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Boxplot of GPT-4 Ratings by Human Ratings",
+       x = "Human Ratings Bin", y = "GPT-4 Ratings") +
+  scale_x_discrete(name = "Human Ratings", labels = 1:9)
+
+st_avg_type2 %>%
+  mutate(mean_resp_bin = cut(mean_response, breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), include.lowest = TRUE)) %>%
+  ggplot(aes(mean_resp_bin, gpt4o_rating)) +
+  geom_boxplot() +
+  facet_wrap(~ sim_trial_type) +
+  theme_minimal() +
+  labs(title = "Boxplot of GPT-4 Ratings by Human Ratings",
+       x = "Human Ratings Bin", y = "GPT-4 Ratings") +
+  scale_x_discrete(name = "Human Ratings", labels = 1:9)
+
+
+st_avg_type2 |> ggplot(aes(x=mean_response, y=gpt4o_rating, col=sim_trial_type)) + 
+  geom_point() +
+  geom_smooth(method="lm") +
+  facet_wrap(~sim_trial_type) +
+  theme_minimal() +
+  labs(title="Human vs GPT-4 Ratings", x="Human Ratings", y="GPT-4 Ratings") +
+  scale_x_continuous(limits=c(0, 10), breaks=seq(0, 10, 2)) +
+  scale_y_continuous(limits=c(0, 10), breaks=seq(0, 10, 2))
+
+```
+
+
+
+## Effect of Rotation
+
+```{r}
+
+
+st_avg_type2 |> 
+  filter(sim_trial_type %in% c("same","repeat")) |>
+  ggplot(aes(x=mean_response, y=gpt4o_rating, col=sim_trial_type)) + 
+  geom_point() +
+  geom_smooth(method="lm") +
+  facet_wrap(rotation~sim_trial_type) +
+  theme_minimal() +
+  labs(title="Human vs GPT-4 Ratings", x="Human Ratings", y="GPT-4 Ratings") +
+  scale_x_continuous(limits=c(0, 10), breaks=seq(0, 10, 2)) +
+  scale_y_continuous(limits=c(0, 10), breaks=seq(0, 10, 2))
+
+
+st_avg_type2 |> 
+  filter(sim_trial_type %in% c("same","repeat")) |>
+    group_by(sim_trial_type,rotation) |> 
+  summarise(n=n(),correlation = cor(mean_response, gpt4o_rating, use = "complete.obs")) |> 
+  arrange(desc(correlation)) |> kable()
+
+
+# filter out sim_trial_type == "same" and compute the correlation again
+st_avg_type2 |> 
+  filter(sim_trial_type != "same") |>
+  with(cor(mean_response, gpt4o_rating, use = "complete.obs"))
+
+```
+
+
+
+## References
+

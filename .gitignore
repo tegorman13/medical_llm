@@ -1,0 +1,14 @@
+
+
+_freeze/*
+.quarto/*
+.Rproj.user/*
+*.Rproj
+
+
+*.csv
+.DS_Store
+#.gitignore
+images.zip
+
+
