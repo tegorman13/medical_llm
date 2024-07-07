@@ -1,5 +1,5 @@
 ---
-title: Comparing Humand and gpt4o Ratings of Image Similarity
+title: Comparing Human and gpt4o Ratings of Image Similarity
 date: last-modified
 lightbox: true
 format:
