@@ -11,6 +11,8 @@ _freeze/*
 #.gitignore
 images.zip
 
+data/first_full_run_script_list.rds
+data/gpt4o_ratings.rds
 
 
 /.quarto/
